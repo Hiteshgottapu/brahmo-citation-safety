@@ -87,11 +87,30 @@ export default function ResponseComparison({
             <Skeleton />
           ) : verifiedResponse ? (
             <div className="p-5">
-              {verifiedResponse.annotated_html ? (
-                <div
-                  className="annotated-html-container"
-                  dangerouslySetInnerHTML={{ __html: verifiedResponse.annotated_html }}
-                />
+              {verifiedResponse.annotated_nodes && verifiedResponse.annotated_nodes.length > 0 ? (
+                <div className="annotated-nodes-container prose-sm prose-invert max-w-none leading-relaxed text-[#cbd5e1]">
+                  {verifiedResponse.annotated_nodes.map((node, i) => {
+                    if (node.type === 'text') {
+                      return <span key={i} className="whitespace-pre-wrap">{node.content}</span>;
+                    }
+                    if (node.type === 'heading') {
+                      return <div key={i} className="font-bold my-2">{node.content}</div>;
+                    }
+                    if (node.type === 'strong') {
+                      return <strong key={i} className="font-bold">{node.content}</strong>;
+                    }
+                    if (node.type === 'badge') {
+                      return (
+                        <span key={i} className={`citation-${node.variant}`}>
+                          {node.content} <span className={`badge badge-${node.variant}`}>
+                            {node.variant === 'verified' ? '✅ VERIFIED' : node.variant === 'removed' ? '❌ REMOVED' : '⚠️ ' + node.variant.toUpperCase()}
+                          </span>
+                        </span>
+                      );
+                    }
+                    return null;
+                  })}
+                </div>
               ) : (
                 <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-[#cbd5e1]">
                   {verifiedResponse.annotated_text || verifiedResponse.raw_text}

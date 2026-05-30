@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import './index.css';
 
-import { Shield, Database, Download, Activity } from 'lucide-react';
+import { Shield, Download, Activity } from 'lucide-react';
 import ControlPanel from './components/ControlPanel';
 import OutputComparison from './components/OutputComparison';
 import TelemetryPanel from './components/TelemetryPanel';
 
-import { fetchSessionHistory, saveSessionHistory, processLegalQuery } from './api';
-import type { ProcessLegalQueryResponse, SessionHistoryItem, HistoricCitationMetric } from './types';
+import { fetchSessionHistory, saveSessionHistory, processLegalQuery, fetchLegalMatters } from './api';
+import type { ProcessLegalQueryResponse, SessionHistoryItem, HistoricCitationMetric, ResponseNode, LegalMatter } from './types';
 
 const MOCK_CITATIONS: HistoricCitationMetric[] = [
   { id: 'c1', citationText: 'AIR 2014 SC 273', frequency: 12, status: 'VERIFIED', savings: 9.60 },
@@ -35,9 +35,11 @@ export default function App() {
 
   const [sessionHistory, setSessionHistory] = useState<SessionHistoryItem[]>([]);
   const [historicCitations, setHistoricCitations] = useState<HistoricCitationMetric[]>(MOCK_CITATIONS);
+  const [legalMatters, setLegalMatters] = useState<LegalMatter[]>([]);
 
   /* ── check backend & database on mount ─────────────────────────────── */
   useEffect(() => {
+    fetchLegalMatters().then(setLegalMatters);
     fetch('http://localhost:8000/health')
       .then(async (r) => {
         if (r.ok) {
@@ -62,7 +64,7 @@ export default function App() {
         stats: row.badge_counts || { verified: 0, corrected: 0, unverified: 0, removed: 0 },
         genericResponse: row.cached_raw_text ? { raw_text: row.cached_raw_text } as any : null,
         verifiedResponse: (row.cached_html || row.section_alerts || row.cached_report) ? {
-          annotated_html: row.cached_html,
+          annotated_nodes: row.cached_html,
           section_alerts: row.section_alerts || [],
           report: row.cached_report || null,
           citations: [],
@@ -99,11 +101,23 @@ export default function App() {
         removed: verified?.report?.removed ?? 0,
       };
 
+      // Generate deterministic, hyper-specific session name
+      const matter = legalMatters.find(m => m.id === selectedArea);
+      let sessionLabel = 'Verification Audit';
+      if (matter) {
+        // e.g. "Rajesh Kumar — Anticipatory Bail" -> "Rajesh Kumar — Anticipatory Bail Audit"
+        const baseName = matter.title.replace(' — ', ' - ');
+        sessionLabel = `${baseName} Audit`;
+        if (sessionLabel.length > 55) {
+          sessionLabel = sessionLabel.substring(0, 52) + '...';
+        }
+      }
+
       // Append to session history dynamically
       const newRun: SessionHistoryItem = {
         id: `run-${Date.now()}`,
         practiceAreaId: selectedArea,
-        practiceAreaLabel: 'Current Session',
+        practiceAreaLabel: sessionLabel.toUpperCase(),
         querySnippet: query.length > 50 ? query.substring(0, 50) + '...' : query,
         fullQuery: query,
         timestamp: new Date().toISOString(),
@@ -115,11 +129,11 @@ export default function App() {
       
       // Fire off background save telemetry to Supabase
       saveSessionHistory({
-        practice_area: 'Current Session',
+        practice_area: sessionLabel,
         query_snippet: newRun.querySnippet,
         cached_query: newRun.fullQuery,
         cached_raw_text: generic?.raw_text,
-        cached_html: verified?.annotated_html,
+        cached_html: verified?.annotated_nodes,
         badge_counts: stats,
         section_alerts: verified?.section_alerts ?? [],
         cached_report: verified?.report ?? {}
@@ -280,7 +294,7 @@ export default function App() {
         <div className="flex-1 overflow-hidden p-3">
           <OutputComparison
             rawText={genericResponse?.raw_text ?? null}
-            safeHtml={verifiedResponse?.annotated_html ?? null}
+            annotatedNodes={verifiedResponse?.annotated_nodes ?? null}
             ragContext={verifiedResponse?.rag_context ?? null}
             isProcessing={isProcessing}
           />

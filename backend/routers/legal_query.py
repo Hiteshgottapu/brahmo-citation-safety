@@ -203,7 +203,7 @@ async def process_legal_query(
         return ProcessLegalQueryResponse(
             raw_text=llm_response,
             annotated_text="",
-            annotated_html="",
+            annotated_nodes=[],
             citations=[],
             section_alerts=[],
             report=ProcessingReport(
@@ -331,7 +331,7 @@ async def process_legal_query(
                 r.status = "CORRECTED"
 
     # m) Annotate the combined text (user query + LLM output)
-    annotated_text, annotated_html = annotator.annotate_text(
+    annotated_text, annotated_nodes = annotator.annotate_text(
         combined_text, all_results
     )
 
@@ -359,7 +359,7 @@ async def process_legal_query(
             "query_snippet": request.query[:100],
             "cached_query": request.query,
             "cached_raw_text": raw_llm,
-            "cached_html": annotated_html,
+            "cached_html": [node.model_dump() for node in annotated_nodes],
             "badge_counts": {
                 "verified": report.verified,
                 "corrected": report.corrected,
@@ -382,7 +382,7 @@ async def process_legal_query(
     return ProcessLegalQueryResponse(
         raw_text=raw_llm,
         annotated_text=annotated_text,
-        annotated_html=annotated_html,
+        annotated_nodes=annotated_nodes,
         citations=all_results,
         section_alerts=all_alerts,
         report=report,

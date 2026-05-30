@@ -12,6 +12,15 @@ from pydantic import BaseModel, Field
 # Database-backed models
 # ---------------------------------------------------------------------------
 
+class ResponseNode(BaseModel):
+    """A structured token node for the safe React presentation tier."""
+    type: Literal["text", "badge", "heading", "strong"]
+    content: str
+    variant: Optional[str] = None
+    correction_note: Optional[str] = None
+    removal_reason: Optional[str] = None
+
+
 class CitationPattern(BaseModel):
     """A single citation regex pattern loaded from the citation_patterns table."""
     id: int
@@ -116,7 +125,7 @@ class ProcessLegalQueryResponse(BaseModel):
     """Full response returned to the frontend."""
     raw_text: str
     annotated_text: str
-    annotated_html: str
+    annotated_nodes: list[ResponseNode] = Field(default_factory=list)
     citations: list[CitationResult] = Field(default_factory=list)
     section_alerts: list[SectionAlert] = Field(default_factory=list)
     report: ProcessingReport = Field(default_factory=ProcessingReport)

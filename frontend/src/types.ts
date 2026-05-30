@@ -56,10 +56,17 @@ export interface ProcessingReport {
 }
 
 // ── Full API Response ────────────────────────────────────────
+
+export type ResponseNode = 
+  | { type: 'text'; content: string }
+  | { type: 'badge'; content: string; variant: 'verified' | 'corrected' | 'removed' | 'unverified'; correction_note?: string; removal_reason?: string }
+  | { type: 'heading'; content: string; variant: 'user_query' | 'analysis' }
+  | { type: 'strong'; content: string };
+
 export interface ProcessLegalQueryResponse {
   raw_text: string;
   annotated_text: string;
-  annotated_html: string;
+  annotated_nodes: ResponseNode[] | string;
   citations: CitationResult[];
   section_alerts: SectionAlert[];
   report: ProcessingReport;

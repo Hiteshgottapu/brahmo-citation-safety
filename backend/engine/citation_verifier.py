@@ -156,7 +156,7 @@ class CitationVerifier:
                     citation=citation,
                     status="UNVERIFIED",
                     original_text=citation.original_text,
-                    reason="External verification disabled",
+                    reason="Structural signature valid; entry absent from local database registry.",
                 )
 
             await self._write_cache(result)

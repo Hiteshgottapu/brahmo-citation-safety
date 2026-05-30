@@ -1,17 +1,17 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, Database, FileText, Search } from 'lucide-react';
-import type { RAGContext as RAGContextType } from '../types';
+import type { RAGContext as RAGContextType, ResponseNode } from '../types';
 
 interface OutputComparisonProps {
   rawText: string | null;
-  safeHtml: string | null;
+  annotatedNodes: ResponseNode[] | string | null;
   ragContext: RAGContextType | null;
   isProcessing: boolean;
 }
 
 export default function OutputComparison({
   rawText,
-  safeHtml,
+  annotatedNodes,
   ragContext,
   isProcessing,
 }: OutputComparisonProps) {
@@ -19,22 +19,81 @@ export default function OutputComparison({
 
   const ragChunks = ragContext?.chunks ?? [];
 
-  // Client-side sanitizer for text payloads and layout typography
-  const sanitizedHtml = safeHtml
-    ? safeHtml
-        // 1. Collapse duplicate statutory acronym suffixes (e.g., "IPC IPC" -> "IPC")
-        .replace(/\b([A-Z]{2,})\s+\1\b/g, '$1')
-        // 2. Standardize INTERCEPTED USER QUERY heading with mt-4 mb-2
-        .replace(
-          /<div[^>]*>🎯.*?<\/div>/i,
-          '<div class="mt-4 mb-2 font-sans text-[10px] font-bold text-slate-500 tracking-wider uppercase not-italic">🎯 INTERCEPTED USER QUERY</div>'
-        )
-        // 3. Standardize VERIFIED LEGAL COMPLAINT & ANALYSIS heading with mt-4 mb-2
-        .replace(
-          /<h3[^>]*>⚖️.*?<\/h3>/i,
-          '<h3 class="mt-4 mb-2 text-sm font-bold tracking-wide text-slate-200 uppercase flex items-center gap-2">⚖️ VERIFIED LEGAL COMPLAINT & ANALYSIS</h3>'
-        )
-    : null;
+  // Helper to render the structured token stream
+  const renderNodes = (nodes: ResponseNode[]) => {
+    return (
+      <div className="prose-sm prose-invert max-w-none leading-relaxed text-slate-300">
+        {nodes.map((node, i) => {
+          if (node.type === 'text') {
+            return <span key={i} className="whitespace-pre-wrap">{node.content}</span>;
+          }
+          
+          if (node.type === 'heading') {
+            if (node.variant === 'user_query') {
+              return (
+                <div key={i} className="mt-4 mb-2 font-sans text-[10px] font-bold text-slate-500 tracking-wider uppercase not-italic">
+                  🎯 {node.content}
+                </div>
+              );
+            }
+            if (node.variant === 'analysis') {
+              return (
+                <div key={`hr-${i}`}>
+                  <hr className="border-t border-slate-700/50 my-6" />
+                  <h3 className="mt-4 mb-2 text-sm font-bold tracking-wide text-slate-200 uppercase flex items-center gap-2">
+                    ⚖️ {node.content}
+                  </h3>
+                </div>
+              );
+            }
+          }
+          
+          if (node.type === 'strong') {
+            return (
+              <strong key={i} className="block text-white text-[15px] font-bold mt-2 mb-4 border-b border-slate-700/50 pb-2">
+                {node.content}
+              </strong>
+            );
+          }
+          
+          if (node.type === 'badge') {
+            if (node.variant === 'verified') {
+              return (
+                <span key={i} className="citation-verified">
+                  {node.content} <span className="badge badge-verified">✅ VERIFIED</span>
+                </span>
+              );
+            }
+            if (node.variant === 'corrected') {
+              return (
+                <span key={i} className="citation-corrected">
+                  {node.content} <span className="badge badge-corrected">⚠️ CORRECTED</span>{' '}
+                  <span className="correction-note">was: {node.correction_note}</span>
+                </span>
+              );
+            }
+            if (node.variant === 'unverified') {
+              return (
+                <span key={i} className="citation-unverified">
+                  {node.content} <span className="badge badge-unverified">⚠️ UNVERIFIED</span>
+                </span>
+              );
+            }
+            if (node.variant === 'removed') {
+              return (
+                <span key={i} className="citation-removed">
+                  <del>{node.content}</del> <span className="badge badge-removed">❌ REMOVED</span>{' '}
+                  <span className="removal-reason">{node.removal_reason}</span>
+                </span>
+              );
+            }
+          }
+          
+          return null;
+        })}
+      </div>
+    );
+  };
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden">
@@ -89,11 +148,35 @@ export default function OutputComparison({
                   <span className="text-xs uppercase tracking-widest font-bold">Running safety pipeline...</span>
                 </div>
               </div>
-            ) : sanitizedHtml ? (
-              <div
-                className="prose-sm prose-invert max-w-none leading-relaxed text-slate-300"
-                dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
-              />
+            ) : annotatedNodes ? (
+              (() => {
+                let nodesToRender = annotatedNodes;
+                let isLegacyHtml = false;
+
+                if (typeof annotatedNodes === 'string') {
+                  try {
+                    // Try to parse stringified JSON arrays from Supabase TEXT column auto-casting
+                    if (annotatedNodes.trim().startsWith('[')) {
+                      nodesToRender = JSON.parse(annotatedNodes);
+                    } else {
+                      isLegacyHtml = true;
+                    }
+                  } catch {
+                    isLegacyHtml = true;
+                  }
+                }
+
+                if (isLegacyHtml) {
+                  return (
+                    <div
+                      className="prose-sm prose-invert max-w-none leading-relaxed text-slate-300"
+                      dangerouslySetInnerHTML={{ __html: annotatedNodes as string }}
+                    />
+                  );
+                }
+
+                return renderNodes(nodesToRender as ResponseNode[]);
+              })()
             ) : (
               <div className="flex h-full items-center justify-center">
                 <div className="text-center">
