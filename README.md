@@ -140,8 +140,13 @@ npm run dev
 ## Sample Verification Results
 
 • Verified citations: 18
+
 • Corrected citation formats: 4
+
 • Deprecated IPC references mapped to BNS: 7
+
 • Unverified citations blocked: 2
+
 • Cache hit rate: 91%
+
 • Average verification latency: 12 ms
